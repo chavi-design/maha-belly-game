@@ -1,0 +1,5 @@
+Add your licensed Clash Display webfont to this folder with this exact filename:
+
+ClashDisplay-Bold.woff2
+
+The CSS already points to this path. Until the font is added, the browser uses Arial Black as a fallback.
