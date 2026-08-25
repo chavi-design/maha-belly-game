@@ -1,4 +1,4 @@
-# MAHA-BELLY: one-step build
+# MAHA-BELLY: smooth movement build
 
 This package contains the playable portrait Onam arcade game for Over Caffeinated Design.
 

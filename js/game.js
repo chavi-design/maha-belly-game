@@ -23,7 +23,7 @@
   const BOARD_H = ROWS * TILE;
   const BOARD_X = (W - BOARD_W) / 2;
   const BOARD_Y = 405;
-  const PLAYER_ANIMATION_MS = 115;
+  const PLAYER_ANIMATION_MS = 128;
   const ENEMY_ANIMATION_MS = 125;
   const CAFFEINE_STEPS = 14;
 
@@ -180,7 +180,7 @@
     moving: false,
     phase: null,
     animation: null,
-    notice: "ONE PRESS = ONE STEP",
+    notice: "PRESS A DIRECTION TO MOVE",
     noticeUntil: 0,
     transitionUntil: 0,
     bumpUntil: 0,
@@ -315,6 +315,8 @@
     game.turns = 0;
     game.caffeine = 0;
     game.queue.length = 0;
+    game.currentDirection = null;
+    game.desiredDirection = null;
     game.moving = false;
     game.phase = null;
     game.animation = null;
@@ -373,28 +375,40 @@
     soundLevel();
   }
 
-  function requestStep(name) {
+  function requestDirection(name) {
     if (game.mode !== "playing" || game.paused || !DIRS[name]) return;
     initAudio();
-    if (game.queue.length < 8) game.queue.push(name);
-    processQueue();
+    game.desiredDirection = name;
+    game.player.facing = name;
+    if (!game.moving) continuePlayerMovement();
   }
 
-  function processQueue() {
-    if (game.moving || game.paused || game.mode !== "playing") return;
-    const name = game.queue.shift();
-    if (!name) return;
+  function canMove(name) {
+    if (!name || !DIRS[name]) return false;
     const dir = DIRS[name];
-    const target = { x: game.player.x + dir.x, y: game.player.y + dir.y };
-    game.player.facing = name;
+    return !isWall(game.player.x + dir.x, game.player.y + dir.y);
+  }
 
-    if (isWall(target.x, target.y)) {
-      game.bumpUntil = performance.now() + 120;
-      beep(95, 0.05, "square", 0.02);
-      requestAnimationFrame(processQueue);
+  function continuePlayerMovement() {
+    if (game.moving || game.paused || game.mode !== "playing") return;
+
+    // Turn buffering: a newly pressed direction is remembered until the
+    // first junction where it becomes legal. This prevents overshooting gaps.
+    if (canMove(game.desiredDirection)) {
+      game.currentDirection = game.desiredDirection;
+    }
+
+    if (!canMove(game.currentDirection)) {
+      game.currentDirection = null;
+      game.moving = false;
+      updateControls();
       return;
     }
 
+    const name = game.currentDirection;
+    const dir = DIRS[name];
+    const target = { x: game.player.x + dir.x, y: game.player.y + dir.y };
+    game.player.facing = name;
     game.moving = true;
     game.phase = "player";
     game.animation = {
@@ -404,7 +418,6 @@
       to: target,
       enemyMoves: []
     };
-    beep(185, 0.035, "square", 0.018);
   }
 
   function lerp(a, b, n) {
@@ -502,23 +515,52 @@
     beep(980, 0.07, "square", 0.035, 0.04);
   }
 
-  function chooseEnemyDirection(enemy) {
+  function chooseEnemyDirection(enemy, reservedTargets) {
     let choices = Object.values(DIRS).filter((dir) => !isWall(enemy.x + dir.x, enemy.y + dir.y));
     const forward = choices.filter((dir) => !(dir.x === -enemy.dir.x && dir.y === -enemy.dir.y));
     if (forward.length) choices = forward;
     if (!choices.length) return null;
-    choices.sort((a, b) => {
-      const da = distance({ x: enemy.x + a.x, y: enemy.y + a.y }, game.player);
-      const db = distance({ x: enemy.x + b.x, y: enemy.y + b.y }, game.player);
-      return game.caffeine > 0 ? db - da : da - db;
+
+    // Keep enemies moving through the maze rather than camping directly in
+    // front of Mahabali. Prefer cells with breathing room when alternatives exist.
+    const roomy = choices.filter((dir) => {
+      const p = { x: enemy.x + dir.x, y: enemy.y + dir.y };
+      const key = `${p.x},${p.y}`;
+      return distance(p, game.player) > 1 && !reservedTargets.has(key);
     });
-    return Math.random() < 0.76 ? choices[0] : choices[Math.floor(Math.random() * choices.length)];
+    if (roomy.length) choices = roomy;
+
+    if (game.caffeine > 0) {
+      choices.sort((a, b) => {
+        const da = distance({ x: enemy.x + a.x, y: enemy.y + a.y }, game.player);
+        const db = distance({ x: enemy.x + b.x, y: enemy.y + b.y }, game.player);
+        return db - da;
+      });
+      return Math.random() < 0.72 ? choices[0] : choices[Math.floor(Math.random() * choices.length)];
+    }
+
+    // Normal mode is mostly patrol/wander. Only occasionally bias toward the
+    // player, so the cursor and URGENT enemy do not relentlessly block junctions.
+    if (Math.random() < 0.24) {
+      choices.sort((a, b) => {
+        const da = distance({ x: enemy.x + a.x, y: enemy.y + a.y }, game.player);
+        const db = distance({ x: enemy.x + b.x, y: enemy.y + b.y }, game.player);
+        return da - db;
+      });
+      return choices[0];
+    }
+
+    const straight = choices.find((d) => d.x === enemy.dir.x && d.y === enemy.dir.y);
+    if (straight && Math.random() < 0.58) return straight;
+    return choices[Math.floor(Math.random() * choices.length)];
   }
 
   function beginEnemyStep() {
+    const reservedTargets = new Set();
     const moves = game.enemies.map((enemy) => {
-      const dir = chooseEnemyDirection(enemy);
+      const dir = chooseEnemyDirection(enemy, reservedTargets);
       const to = dir ? { x: enemy.x + dir.x, y: enemy.y + dir.y } : { x: enemy.x, y: enemy.y };
+      reservedTargets.add(`${to.x},${to.y}`);
       if (dir) enemy.dir = dir;
       return { enemy, from: { x: enemy.x, y: enemy.y }, to };
     });
@@ -550,12 +592,14 @@
     game.phase = null;
     game.animation = null;
     updateControls();
-    processQueue();
+    continuePlayerMovement();
   }
 
   function loseLife() {
     game.lives -= 1;
     game.queue.length = 0;
+    game.currentDirection = null;
+    game.desiredDirection = null;
     game.caffeine = 0;
     beep(120, 0.18, "sawtooth", 0.055);
     beep(78, 0.22, "square", 0.04, 0.1);
@@ -589,6 +633,8 @@
     game.score += 750;
     saveHighScore();
     game.queue.length = 0;
+    game.currentDirection = null;
+    game.desiredDirection = null;
     game.moving = false;
     game.phase = null;
     game.animation = null;
@@ -627,7 +673,7 @@
         <p class="intro-copy">${copy}</p>
         <p class="intro-copy">SCORE ${String(game.score).padStart(5, "0")}</p>
         <button id="restartButton" class="primary-button" type="button">${button}</button>
-        <p class="control-copy">Each arrow press moves Mahabali exactly one tile.</p>
+        <p class="control-copy">Press a direction once to keep moving. Press the next direction early and Mahabali will take the turn automatically at the first opening.</p>
       </div>`;
     overlay.classList.remove("is-hidden");
     document.getElementById("restartButton").addEventListener("click", startGame, { once: true });
@@ -1078,7 +1124,7 @@
 
     ctx.fillStyle = C.white;
     ctx.font = "900 25px ui-monospace, Menlo, monospace";
-    const notice = game.paused ? "PAUSED" : now < game.noticeUntil ? game.notice : "ONE PRESS = ONE STEP";
+    const notice = game.paused ? "PAUSED" : now < game.noticeUntil ? game.notice : "PRESS A DIRECTION • TURNS ARE BUFFERED";
     ctx.fillText(notice, W / 2, 1700);
     ctx.fillStyle = "#989898";
     ctx.font = "800 18px ui-monospace, Menlo, monospace";
@@ -1157,17 +1203,16 @@
     requestAnimationFrame(loop);
   }
 
-  arrowButtons.forEach((button) => button.addEventListener("click", () => requestStep(button.dataset.direction)));
+  arrowButtons.forEach((button) => button.addEventListener("click", () => requestDirection(button.dataset.direction)));
 
   window.addEventListener("keydown", (event) => {
-    if (event.repeat) return;
     const map = {
       ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
       w: "up", W: "up", s: "down", S: "down", a: "left", A: "left", d: "right", D: "right"
     };
     if (map[event.key]) {
       event.preventDefault();
-      requestStep(map[event.key]);
+      requestDirection(map[event.key]);
     } else if (event.key === " " || event.key === "Escape") {
       event.preventDefault();
       togglePause();
@@ -1183,8 +1228,8 @@
     const dy = event.clientY - game.swipe.y;
     game.swipe = null;
     if (Math.max(Math.abs(dx), Math.abs(dy)) < 16) return;
-    if (Math.abs(dx) > Math.abs(dy)) requestStep(dx > 0 ? "right" : "left");
-    else requestStep(dy > 0 ? "down" : "up");
+    if (Math.abs(dx) > Math.abs(dy)) requestDirection(dx > 0 ? "right" : "left");
+    else requestDirection(dy > 0 ? "down" : "up");
   });
   canvas.addEventListener("pointercancel", () => { game.swipe = null; });
 
@@ -1202,7 +1247,7 @@
 
   window.MahaBelly = Object.freeze({
     start: startGame,
-    step: requestStep,
+    move: requestDirection,
     pause: togglePause,
     getState: () => ({
       mode: game.mode,

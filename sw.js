@@ -1,4 +1,4 @@
-const CACHE = "maha-belly-one-step-v1";
+const CACHE = "maha-belly-turn-buffer-v2";
 const FILES = [
   "./",
   "./index.html",
