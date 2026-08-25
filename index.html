@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="MAHA-BELLY: an Onam arcade game by Over Caffeinated Design.">
+  <meta property="og:title" content="MAHA-BELLY">
+  <meta property="og:description" content="Help Mahabali finish his Sadhya, dodge agency chaos, and find the OCD coffee.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="assets/images/social-preview.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+  <link rel="stylesheet" href="css/styles.css">
+  <title>MAHA-BELLY | Over Caffeinated Design</title>
+</head>
+<body>
+  <main class="page-shell">
+    <section id="gameShell" class="game-shell" aria-label="MAHA-BELLY Onam arcade game">
+      <canvas id="game" width="1080" height="1920" aria-label="MAHA-BELLY game canvas"></canvas>
+
+      <div class="top-actions" aria-label="Game settings">
+        <button id="soundButton" class="icon-button" type="button" aria-label="Mute sound">SOUND ON</button>
+        <button id="pauseButton" class="icon-button" type="button" aria-label="Pause game">PAUSE</button>
+      </div>
+
+      <div id="caffeineBanner" class="caffeine-banner" aria-live="polite">
+        OVER CAFFEINATED MODE
+      </div>
+
+      <div class="step-controls" aria-label="One-step movement controls">
+        <button class="step-button step-up" type="button" data-direction="up" aria-label="Move up one step">&#9650;</button>
+        <button class="step-button step-left" type="button" data-direction="left" aria-label="Move left one step">&#9664;</button>
+        <button class="step-button step-down" type="button" data-direction="down" aria-label="Move down one step">&#9660;</button>
+        <button class="step-button step-right" type="button" data-direction="right" aria-label="Move right one step">&#9654;</button>
+      </div>
+
+      <div id="overlay" class="overlay">
+        <div class="overlay-card">
+          <p class="eyebrow">OVER CAFFEINATED DESIGN &times; ONAM</p>
+          <h1>MAHA-<br>BELLY</h1>
+          <p class="intro-copy">
+            Help Mahabali finish his Sadhya. Dodge agency chaos. Find the OCD coffee. Save Onam.
+          </p>
+          <div class="food-list" aria-label="Collectible foods">
+            <span>RICE</span>
+            <span>AVIYAL</span>
+            <span>PAYASAM</span>
+            <span>PAPPADAM</span>
+            <span>CHIPS</span>
+            <span>PICKLE</span>
+            <span>BANANA</span>
+            <span>COFFEE</span>
+          </div>
+          <button id="startButton" class="primary-button" type="button">TAP TO FEAST</button>
+          <p class="control-copy">Each arrow click, key press, or swipe moves exactly one tile.</p>
+        </div>
+      </div>
+
+      <p id="liveStatus" class="visually-hidden" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <script src="js/game.js" defer></script>
+</body>
+</html>
